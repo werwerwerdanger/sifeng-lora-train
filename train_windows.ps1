@@ -6,6 +6,7 @@ if (-not (Test-Path $py)) { $py = "python" }
 $repo = Join-Path $root "repo"
 $env:HF_HUB_OFFLINE = "1"
 $env:TRANSFORMERS_OFFLINE = "1"
+$env:ACESTEP_MODELS = Join-Path $root "models\ace"
 Set-Location $repo
 
 function Run-Train([int]$nw) {
