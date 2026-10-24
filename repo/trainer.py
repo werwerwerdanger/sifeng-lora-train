@@ -846,10 +846,17 @@ def main(args):
         adapter_name=args.exp_name,
         lora_config_path=args.lora_config_path
     )
+    # checkpoint 显式指定目录, 避免存到版本目录深处找不到
+    _ckpt_dir = os.path.join(args.logger_dir, "ckpt")
+    os.makedirs(_ckpt_dir, exist_ok=True)
+    print(f"[checkpoint] dir={_ckpt_dir} every={args.every_n_train_steps} steps", flush=True)
     checkpoint_callback = ModelCheckpoint(
         monitor=None,
+        dirpath=_ckpt_dir,
+        filename="sifeng-lora-{step:04d}",
         every_n_train_steps=args.every_n_train_steps,
         save_top_k=-1,
+        save_last=True,
     )
     # add datetime str to version
     logger_callback = TensorBoardLogger(
