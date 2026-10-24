@@ -835,6 +835,14 @@ class Pipeline(LightningModule):
 
 
 def main(args):
+    # 固定随机种子, 让两次训练尽量可复现 (仍受 cuDNN/bf16 非确定性影响)
+    try:
+        from pytorch_lightning import seed_everything
+        seed_everything(int(getattr(args, "seed", 42)), workers=True)
+    except Exception as _e:
+        print(f"[seed] seed_everything failed: {_e}", flush=True)
+    torch.manual_seed(int(getattr(args, "seed", 42)))
+    print(f"[seed] {getattr(args, 'seed', 42)}", flush=True)
     model = Pipeline(
         learning_rate=args.learning_rate,
         num_workers=args.num_workers,
@@ -911,5 +919,6 @@ if __name__ == "__main__":
     args.add_argument("--every_plot_step", type=int, default=2000)
     args.add_argument("--val_check_interval", type=int, default=None)
     args.add_argument("--lora_config_path", type=str, default="config/zh_rap_lora_config.json")
+    args.add_argument("--seed", type=int, default=42)
     args = args.parse_args()
     main(args)
