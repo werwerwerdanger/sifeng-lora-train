@@ -23,7 +23,8 @@ if (-not (Test-Path $py)) {
     }
     if (-not $made) { throw "No usable Python found. Install Python 3.12 x64 and re-run." }
 }
-& $py -m pip install --upgrade pip --progress-bar on
+& $py -m pip install --upgrade pip -i $mirror --progress-bar on
+if ($LASTEXITCODE -ne 0) { Write-Host "pip upgrade skipped (network), continuing anyway" -ForegroundColor Yellow }
 
 Step "2/6" "Install Python dependencies (~10 min)"
 & $py -m pip install -i $mirror --progress-bar on numpy diffusers "transformers==4.50.0" "accelerate==1.6.0" `
