@@ -1,0 +1,6 @@
+models/
+venv/
+train/ds/
+train/logs/
+*.ckpt
+__pycache__/
