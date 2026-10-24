@@ -854,17 +854,21 @@ def main(args):
         adapter_name=args.exp_name,
         lora_config_path=args.lora_config_path
     )
-    # checkpoint 显式指定目录, 避免存到版本目录深处找不到
+    # 注意: Lightning 每保存一次会写一份完整模型快照(约 9GB);
+    # 真正要的是 on_save_checkpoint 里存的 LoRA adapter(几十 MB)。
+    # 因此只保留最新一份, 避免磁盘被 9GB 快照塞满 / 写盘卡死。
     _ckpt_dir = os.path.join(args.logger_dir, "ckpt")
     os.makedirs(_ckpt_dir, exist_ok=True)
-    print(f"[checkpoint] dir={_ckpt_dir} every={args.every_n_train_steps} steps", flush=True)
+    print(f"[checkpoint] lightning_snapshot_dir={_ckpt_dir} every={args.every_n_train_steps} steps "
+          f"(keeps only latest; LoRA adapters go to lightning_logs/*/checkpoints/*_lora)",
+          flush=True)
     checkpoint_callback = ModelCheckpoint(
         monitor=None,
         dirpath=_ckpt_dir,
-        filename="sifeng-lora-{step:04d}",
+        filename="snapshot-{step:04d}",
         every_n_train_steps=args.every_n_train_steps,
-        save_top_k=-1,
-        save_last=True,
+        save_top_k=1,
+        save_last=False,
     )
     # add datetime str to version
     logger_callback = TensorBoardLogger(
