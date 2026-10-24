@@ -23,10 +23,10 @@ if (-not (Test-Path $py)) {
     }
     if (-not $made) { throw "No usable Python found. Install Python 3.12 x64 and re-run." }
 }
-& $py -m pip install -q --upgrade pip
+& $py -m pip install --upgrade pip --progress-bar on
 
 Step "2/6" "Install Python dependencies (~10 min)"
-& $py -m pip install -q -i $mirror numpy diffusers "transformers==4.50.0" "accelerate==1.6.0" `
+& $py -m pip install -i $mirror --progress-bar on numpy diffusers "transformers==4.50.0" "accelerate==1.6.0" `
     huggingface_hub loguru tqdm click librosa soundfile datasets pypinyin "py3langid==0.3.0" `
     num2words peft cutlet "fugashi[unidic-lite]" hangul-romanize spacy matplotlib modelscope `
     "pytorch_lightning==2.5.1" tensorboardX nnAudio
@@ -34,13 +34,13 @@ Step "2/6" "Install Python dependencies (~10 min)"
 Step "3/6" "Install torch cu128 (~2.5 GB, tries official then mirror)"
 $torchOk = $false
 try {
-    & $py -m pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu128
+    & $py -m pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu128 --progress-bar on
     $torchOk = $true
 } catch {
     Write-Host "Official index failed, trying aliyun mirror..." -ForegroundColor Yellow
 }
 if (-not $torchOk) {
-    & $py -m pip install torch torchaudio torchvision --index-url https://mirrors.aliyun.com/pytorch-wheels/cu128
+    & $py -m pip install torch torchaudio torchvision --index-url https://mirrors.aliyun.com/pytorch-wheels/cu128 --progress-bar on
 }
 & $py -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU ONLY')"
 
