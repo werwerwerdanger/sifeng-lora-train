@@ -3,6 +3,22 @@
 本包用于在另一台带 GPU 的机器上训练 ACE-Step 的司凤风格 LoRA。
 已包含：打过补丁的 ACE-Step 代码、57 段 30 秒司凤伴奏训练片段（含标签）、LoRA 配置、启动脚本。
 
+## -1. 获取本包
+
+私有仓库：https://github.com/werwerwerdanger/sifeng-lora-train
+
+三种方式任选（国内网络打不开 GitHub 时，在 URL 前加 `https://gh-proxy.com/`）：
+
+```bash
+# A. 浏览器：登录 GitHub -> 仓库页面 -> Code -> Download ZIP（最省事，不需要 git）
+# B. 已装 gh 并登录同一账号：
+gh repo clone werwerwerdanger/sifeng-lora-train
+# C. git + 个人访问令牌（私有仓库）：
+git clone https://<TOKEN>@github.com/werwerwerdanger/sifeng-lora-train.git
+```
+
+解压/克隆后建议放在 `D:\sifeng-lora`（下面命令都按这个路径写，放别处就跟着改）。
+
 ## 0. 前置：目录结构
 
 建议解压到与源机相同的路径，数据集里记录的是相对旧路径的绝对路径，
