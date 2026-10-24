@@ -32,6 +32,12 @@ matplotlib.use("Agg")
 torch.backends.cudnn.benchmark = False
 torch.set_float32_matmul_precision("high")
 
+# 模型目录可由环境变量覆盖 (避免安装脚本改写源码导致缩进/编码损坏)
+_MODELS = os.environ.get("ACESTEP_MODELS", os.path.expanduser("~/.acestep/models"))
+MERT_DIR = os.path.join(_MODELS, "mert")
+MHUBERT_DIR = os.path.join(_MODELS, "mhubert")
+
+
 
 class Pipeline(LightningModule):
     def __init__(
@@ -98,7 +104,7 @@ class Pipeline(LightningModule):
             # download first
             try:
                 self.mert_model = AutoModel.from_pretrained(
-                    r"D:\AI\acestep\models_ms\mert", trust_remote_code=True,
+                    MERT_DIR, trust_remote_code=True,
                     cache_dir=checkpoint_dir
                 ).eval()
             except:
@@ -128,16 +134,16 @@ class Pipeline(LightningModule):
                 orig_freq=48000, new_freq=24000
             )
             self.processor_mert = Wav2Vec2FeatureExtractor.from_pretrained(
-                r"D:\AI\acestep\models_ms\mert", trust_remote_code=True
+                MERT_DIR, trust_remote_code=True
             )
 
-            self.hubert_model = AutoModel.from_pretrained(r"D:\AI\acestep\models_ms\mhubert").eval()
+            self.hubert_model = AutoModel.from_pretrained(MHUBERT_DIR).eval()
             self.hubert_model.requires_grad_(False)
             self.resampler_mhubert = torchaudio.transforms.Resample(
                 orig_freq=48000, new_freq=16000
             )
             self.processor_mhubert = Wav2Vec2FeatureExtractor.from_pretrained(
-                r"D:\AI\acestep\models_ms\mhubert",
+                MHUBERT_DIR,
                 cache_dir=checkpoint_dir,
             )
 
