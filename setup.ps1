@@ -60,9 +60,17 @@ Write-Host "dataset files: $dsCount"
 
 Step "6/6" "Patch model paths in trainer.py"
 $trainer = Join-Path $repo "trainer.py"
-$text = (Get-Content $trainer -Raw).Replace('D:\AI\acestep\models_ms', $ace)
-Set-Content -Path $trainer -Value $text -Encoding utf8 -NoNewline
-Select-String -Path $trainer -Pattern 'mert|mhubert' | Select-Object -First 3 | ForEach-Object { $_.Line.Trim() }
+$src = Get-Content $trainer -Raw
+if ($src -match 'ACESTEP_MODELS') {
+    Write-Host "trainer.py already reads ACESTEP_MODELS (no rewrite needed)"
+} else {
+    Write-Host "WARNING: trainer.py does not support ACESTEP_MODELS, falling back to text patch" -ForegroundColor Yellow
+    $text = $src.Replace('D:\AI\acestep\models_ms', $ace)
+    Set-Content -Path $trainer -Value $text -Encoding utf8 -NoNewline
+}
+$env:ACESTEP_MODELS = $ace
+Write-Host "ACESTEP_MODELS = $ace"
+& $py -c "import ast,io; ast.parse(io.open(r'$trainer',encoding='utf-8').read()); print('trainer.py syntax OK')"
 
 Write-Host ""
 Write-Host "=== Setup finished ===" -ForegroundColor Green
