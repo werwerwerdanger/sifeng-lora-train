@@ -16,7 +16,7 @@ function Run-Train([int]$nw) {
         --exp_name sifeng_lora `
         --precision bf16-mixed `
         --max_steps $Steps `
-        --every_n_train_steps 10 `
+        --every_n_train_steps 25 `
         --accumulate_grad_batches 2 `
         --lora_config_path (Join-Path $root "train/sifeng_lora.json") `
         --logger_dir (Join-Path $root "train/logs") `
