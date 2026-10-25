@@ -5,6 +5,7 @@ from datetime import datetime
 import argparse
 import torch
 import json
+import time
 import matplotlib
 import torch.nn.functional as F
 import torch.utils.data
@@ -857,6 +858,14 @@ class LoRAOnlySaver(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         step = int(trainer.global_step)
+        # 每步追加一行进度到 progress.txt (立即 flush, 不受 stdout 缓冲影响)
+        try:
+            loss = trainer.callback_metrics.get("train/loss")
+            loss_s = f"{float(loss):.4f}" if loss is not None else "nan"
+            with open(os.path.join(self.out_dir, "progress.txt"), "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%H:%M:%S')}\tstep={step}\tloss={loss_s}\n")
+        except Exception as e:
+            print(f"[progress] write failed: {e}", flush=True)
         if step > 0 and step % self.every_n == 0:
             self._save(trainer, pl_module)
 
