@@ -1,4 +1,4 @@
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning import Trainer
 from datetime import datetime
@@ -834,6 +834,36 @@ class Pipeline(LightningModule):
             i += 1
 
 
+class LoRAOnlySaver(Callback):
+    """只保存 LoRA adapter(约 60MB), 不写 Lightning 的 9GB 全量快照。"""
+
+    def __init__(self, every_n: int, out_dir: str, adapter_name: str = "ace_step_lora"):
+        super().__init__()
+        self.every_n = max(1, int(every_n))
+        self.out_dir = out_dir
+        self.adapter_name = adapter_name
+        os.makedirs(self.out_dir, exist_ok=True)
+
+    def _save(self, trainer, pl_module):
+        step = int(trainer.global_step)
+        d = os.path.join(self.out_dir, f"step={step:04d}_lora")
+        os.makedirs(d, exist_ok=True)
+        try:
+            pl_module.transformers.save_lora_adapter(d, adapter_name=self.adapter_name)
+            size = sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d)) / 1e6
+            print(f"[lora] step={step} saved -> {d} ({size:.1f} MB)", flush=True)
+        except Exception as e:
+            print(f"[lora] step={step} SAVE FAILED: {type(e).__name__}: {e}", flush=True)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        step = int(trainer.global_step)
+        if step > 0 and step % self.every_n == 0:
+            self._save(trainer, pl_module)
+
+    def on_train_end(self, trainer, pl_module):
+        self._save(trainer, pl_module)
+
+
 def main(args):
     # 固定随机种子, 让两次训练尽量可复现 (仍受 cuDNN/bf16 非确定性影响)
     try:
@@ -887,7 +917,8 @@ def main(args):
         max_steps=args.max_steps,
         log_every_n_steps=1,
         logger=logger_callback,
-        callbacks=[checkpoint_callback],
+        enable_checkpointing=False,
+        callbacks=[LoRAOnlySaver(args.every_n_train_steps, _ckpt_dir)],
         gradient_clip_val=args.gradient_clip_val,
         gradient_clip_algorithm=args.gradient_clip_algorithm,
         reload_dataloaders_every_n_epochs=args.reload_dataloaders_every_n_epochs,
