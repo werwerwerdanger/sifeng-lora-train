@@ -847,6 +847,9 @@ class LoRAOnlySaver(Callback):
 
     def _save(self, trainer, pl_module):
         step = int(trainer.global_step)
+        if step <= 0:
+            # Lightning 的 sanity check / 预览阶段 global_step 仍是 0, 此时不落盘
+            return
         d = os.path.join(self.out_dir, f"step={step:04d}_lora")
         os.makedirs(d, exist_ok=True)
         try:
@@ -854,7 +857,14 @@ class LoRAOnlySaver(Callback):
             size = sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d)) / 1e6
             print(f"[lora] step={step} saved -> {d} ({size:.1f} MB)", flush=True)
         except Exception as e:
+            # 保存失败必须立刻中止: 静默失败会让整轮训练白跑
             print(f"[lora] step={step} SAVE FAILED: {type(e).__name__}: {e}", flush=True)
+            try:
+                import shutil
+                shutil.rmtree(d, ignore_errors=True)   # 清掉空目录, 避免误以为有产物
+            except Exception:
+                pass
+            raise
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         step = int(trainer.global_step)
@@ -927,7 +937,7 @@ def main(args):
         log_every_n_steps=1,
         logger=logger_callback,
         enable_checkpointing=False,
-        callbacks=[LoRAOnlySaver(args.every_n_train_steps, _ckpt_dir)],
+        callbacks=[LoRAOnlySaver(args.every_n_train_steps, _ckpt_dir, adapter_name=args.exp_name)],
         gradient_clip_val=args.gradient_clip_val,
         gradient_clip_algorithm=args.gradient_clip_algorithm,
         reload_dataloaders_every_n_epochs=args.reload_dataloaders_every_n_epochs,
