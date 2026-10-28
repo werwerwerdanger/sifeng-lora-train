@@ -67,7 +67,7 @@
 
   .sec{margin-top:36px}
   .sec-h{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:13px}
-  .modes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:11px}
   .mode{
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
     padding:17px 18px; cursor:pointer; text-align:left;
@@ -200,7 +200,7 @@
 
   <div class="top">
     <h1><span class="mark"></span>MIDI 音色转换</h1>
-    <div class="v">8bit / Classical</div>
+    <a class="v" href="/a2m.html" style="text-decoration:none;border:1px solid var(--line);padding:5px 11px;border-radius:7px;color:var(--dim);transition:.16s" onmouseover="this.style.color='#c9f31d';this.style.borderColor='rgba(201,243,29,.4)'" onmouseout="this.style.color='';this.style.borderColor=''">音频 → MIDI ↗</a>
   </div>
 
   <div class="drop" id="drop">
@@ -235,11 +235,7 @@
         <div class="mode-n">古典 · 四重奏</div>
         <div class="mode-d">SoundFont 采样，小提琴×2 / 中提琴 / 大提琴</div>
       </button>
-      <button class="mode" data-mode="a2m">
-        <div class="tick"><svg viewBox="0 0 12 12"><path d="M2 6l2.5 2.5L10 3"/></svg></div>
-        <div class="mode-n">音频 · 转 MIDI</div>
-        <div class="mode-d">Basic Pitch 神经网络逐音转写，输出可编辑 MIDI</div>
-      </button>
+
     </div>
   </div>
 
@@ -284,10 +280,6 @@ const PARAMS = {
     { k:'bits', label:'位深量化', type:'select', val:0, options:[{v:0,t:'关闭（现代 8bit 风格）'},{v:4,t:'4-bit（真 NES 硬件）'}], hint:'真 4-bit 会砍掉低频，一般关闭' },
     { k:'bassKind', label:'低音波形', type:'select', val:'pulse', options:[{v:'pulse',t:'脉冲波（低频厚）'},{v:'triangle',t:'三角波（更正统但弱）'}], hint:'NES 原机是三角波，能量偏小' },
     { k:'drumPat', label:'节奏型', type:'select', val:'', options:[{v:'',t:'用 MIDI 自带鼓轨'},{v:'four',t:'四踩 Four-on-floor'},{v:'euro',t:'欧陆 Euro（四踩+反拍开镲）'},{v:'rock',t:'摇滚 Rock（1/3 底鼓 2/4 军鼓）'},{v:'offhat',t:'反拍镲 Offbeat'},{v:'hat8',t:'八分镲 Hat 8th'},{v:'half',t:'半速 Half-time'},{v:'none',t:'不要鼓'}], hint:'内置范式按 BPM 自动铺满，不依赖 MIDI 鼓轨' }
-  ],
-  a2m: [
-    { k:'minNote', label:'最短音符', min:30, max:200, step:10, val:60, unit:' ms', hint:'越短越密集；60ms 较稳妥，太长会丢掉快速经过音' },
-    { k:'drumPat', label:'试听节奏型', type:'select', val:'rock', options:[{v:'',t:'只转写，不加鼓'},{v:'four',t:'四踩'},{v:'euro',t:'欧陆'},{v:'rock',t:'摇滚'},{v:'offhat',t:'反拍镲'},{v:'none',t:'不要鼓'}], hint:'转写完成后会渲染一份 8bit 试听' }
   ],
   q4: [
     { k:'reverb', label:'混响量', min:0, max:0.6, step:0.02, val:0.25, hint:'卷积混响，IR 1.6s、预延迟 12ms' },

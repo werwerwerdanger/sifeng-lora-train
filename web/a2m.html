@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音频转 MIDI · Basic Pitch</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#08080b; --surface:#101014; --surface2:#16161c;
+    --line:#232329; --line2:#2e2e37;
+    --fg:#f2f2f5; --dim:#78788a; --dim2:#4a4a58;
+    --accent:#c9f31d; --accent-dim:rgba(201,243,29,.12);
+    --err:#f87171;
+  }
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-feature-settings:"tnum";
+    display:flex; flex-direction:column; align-items:center;
+    padding:52px 24px 80px; min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(760px 420px at 50% -14%, rgba(201,243,29,.06), transparent 70%);
+  }
+  .app{width:100%; max-width:680px; position:relative; z-index:1}
+
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:46px}
+  .back{
+    font-size:12px;color:var(--dim);text-decoration:none;display:flex;align-items:center;gap:6px;
+    transition:color .16s;
+  }
+  .back:hover{color:var(--fg)}
+  .back svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+  .tag{font-size:10.5px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;
+       border:1px solid var(--line);padding:4px 9px;border-radius:5px}
+
+  h1{font-size:26px;font-weight:650;letter-spacing:-.02em;margin-bottom:9px}
+  h1 em{font-style:normal;color:var(--accent)}
+  .lede{font-size:13px;color:var(--dim);line-height:1.65;margin-bottom:36px;max-width:560px}
+  .lede code{
+    font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+    background:var(--surface2);padding:1.5px 5px;border-radius:4px;color:#a8b878;
+  }
+
+  /* 上传 */
+  .drop{
+    border:1px dashed var(--line2); border-radius:15px;
+    padding:58px 32px; text-align:center; cursor:pointer;
+    transition:border-color .2s, background .2s, padding .2s;
+    background:var(--surface);
+  }
+  .drop:hover{border-color:#3d3d48;background:var(--surface2)}
+  .drop.over{border-color:var(--accent);background:var(--accent-dim)}
+  .drop.has{border-style:solid;padding:26px 30px;text-align:left;background:var(--surface)}
+  .drop-ico{
+    width:44px;height:44px;margin:0 auto 17px;border-radius:11px;
+    background:var(--surface2);border:1px solid var(--line);
+    display:grid;place-items:center;
+  }
+  .drop-ico svg{width:19px;height:19px;stroke:var(--dim);fill:none;stroke-width:1.6}
+  .drop-t{font-size:14.5px;font-weight:500;margin-bottom:6px}
+  .drop-s{font-size:12.5px;color:var(--dim)}
+  .file-row{display:flex;align-items:center;gap:14px}
+  .file-ico{
+    width:38px;height:38px;border-radius:9px;background:var(--accent-dim);
+    display:grid;place-items:center;flex:0 0 auto;
+    font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.03em;
+  }
+  .file-meta{min-width:0;flex:1}
+  .file-name{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-sub{font-size:12px;color:var(--dim);margin-top:2px}
+  .clear{
+    flex:0 0 auto;background:none;border:none;color:var(--dim2);cursor:pointer;
+    font-size:19px;line-height:1;padding:5px 7px;border-radius:6px;
+  }
+  .clear:hover{color:var(--fg);background:var(--surface2)}
+
+  /* 参数 */
+  .params{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:18px 24px}
+  .p{display:flex;flex-direction:column;gap:9px}
+  .p-l{display:flex;justify-content:space-between;font-size:12px;color:var(--dim)}
+  .p-l b{color:var(--fg);font-weight:600}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;
+    background:var(--line2);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:none;
+    box-shadow:0 0 0 3px rgba(201,243,29,.16);
+  }
+  select{
+    background:var(--surface); border:1px solid var(--line); color:var(--fg);
+    border-radius:8px; padding:9px 11px; font-size:12.5px; cursor:pointer;
+    font-family:inherit; width:100%; outline:none;
+  }
+  select:focus{border-color:var(--accent)}
+  .hint{font-size:11px;color:var(--dim2);line-height:1.45}
+
+  .go{
+    margin-top:30px; width:100%; height:52px; border:none; border-radius:12px;
+    background:var(--accent); color:#08080b; font-size:14.5px; font-weight:650;
+    font-family:inherit; cursor:pointer; letter-spacing:.01em;
+    transition:filter .16s, transform .12s;
+    display:flex;align-items:center;justify-content:center;gap:9px;
+  }
+  .go:hover:not(:disabled){filter:brightness(1.08)}
+  .go:active:not(:disabled){transform:scale(.995)}
+  .go:disabled{background:var(--line);color:var(--dim2);cursor:not-allowed}
+  .spin{width:14px;height:14px;border:2px solid rgba(8,8,11,.25);border-top-color:#08080b;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* 结果 */
+  .result{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:24px 26px;display:none}
+  .result.show{display:block;animation:in .32s cubic-bezier(.2,.8,.3,1)}
+  @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .r-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .r-title{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .ok-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent)}
+  .dl{
+    font-size:12px;color:var(--accent);text-decoration:none;font-weight:550;
+    border:1px solid rgba(201,243,29,.32);padding:7px 15px;border-radius:8px;transition:.16s;
+    display:flex;align-items:center;gap:6px;
+  }
+  .dl:hover{background:var(--accent-dim)}
+  .dl svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+
+  /* 大数字 */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .kpi{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .kpi-v{font-size:20px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
+  .kpi-v i{font-style:normal;font-size:11px;color:var(--dim);margin-left:3px;font-weight:400}
+  .kpi-l{font-size:10.5px;color:var(--dim2);margin-top:5px;letter-spacing:.02em}
+  .kpi.hl .kpi-v{color:var(--accent)}
+
+  /* 轨道表 */
+  .trk-h{font-size:10px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:10px}
+  .trk-row{
+    display:grid;grid-template-columns:1fr 60px 1fr 56px;gap:10px;align-items:center;
+    font-size:11.5px;padding:7px 0;border-bottom:1px solid rgba(35,35,41,.55);
+    font-variant-numeric:tabular-nums;
+  }
+  .trk-row:last-child{border-bottom:none}
+  .trk-n{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trk-c{color:var(--dim);text-align:right}
+  .trk-bar{height:4px;border-radius:2px;background:#0a0e14;overflow:hidden;position:relative}
+  .trk-bar i{position:absolute;top:0;bottom:0;left:0;background:var(--accent);border-radius:2px}
+  .trk-u{color:var(--accent);text-align:right;font-weight:600}
+
+  /* 播放器 */
+  .player{display:flex;align-items:center;gap:14px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+  .pbtn{
+    width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;cursor:pointer;
+    background:var(--accent);color:#08080b;display:grid;place-items:center;transition:transform .14s;
+  }
+  .pbtn:hover{transform:scale(1.06)}
+  .pbtn svg{width:14px;height:14px;fill:currentColor}
+  .wave-wrap{flex:1;height:34px}
+  canvas{width:100%;height:100%;display:block;cursor:pointer}
+  .ptime{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:74px;text-align:right}
+  .plabel{font-size:10.5px;color:var(--dim2);margin-top:9px}
+
+  .err{
+    margin-top:18px;border:1px solid rgba(248,113,113,.28);background:rgba(248,113,113,.07);
+    color:var(--err);border-radius:10px;padding:13px 16px;font-size:12.5px;
+    display:none;white-space:pre-wrap;
+  }
+  .err.show{display:block}
+
+  .foot{margin-top:44px;text-align:center;font-size:11px;color:var(--dim2);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <a class="back" href="/">
+      <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>返回
+    </a>
+    <div class="tag">Basic Pitch · ONNX</div>
+  </div>
+
+  <h1>音频 <em>→</em> MIDI</h1>
+  <p class="lede">
+    神经网络逐音转写，输出可编辑的 MIDI。不做网格量化，时值保持原始演奏的细微变化。
+    转写完成后会自动渲染一份 8bit 试听，方便直接听结果。
+  </p>
+
+  <div class="drop" id="drop">
+    <div id="dropEmpty">
+      <div class="drop-ico">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5l5 5"/><path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+      </div>
+      <div class="drop-t">拖入音频文件</div>
+      <div class="drop-s">或点击选择 · .mp3 / .wav / .flac / .m4a</div>
+    </div>
+    <div id="dropFile" class="file-row" style="display:none">
+      <div class="file-ico">AUD</div>
+      <div class="file-meta">
+        <div class="file-name" id="fName"></div>
+        <div class="file-sub" id="fSub"></div>
+      </div>
+      <button class="clear" id="clear" title="移除">×</button>
+    </div>
+  </div>
+  <input type="file" id="file" accept=".mp3,.wav,.flac,.m4a,.ogg,audio/*" style="display:none">
+
+  <div class="params">
+    <div class="p">
+      <div class="p-l"><span>最短音符</span><b id="vMin">60 ms</b></div>
+      <input type="range" id="minNote" min="30" max="200" step="10" value="60">
+      <div class="hint">越短越密集；太长会丢掉快速经过音</div>
+    </div>
+    <div class="p">
+      <div class="p-l"><span>试听节奏型</span></div>
+      <select id="drumPat">
+        <option value="rock" selected>摇滚（推荐）</option>
+        <option value="">只转写，不加鼓</option>
+        <option value="four">四踩</option>
+        <option value="euro">欧陆</option>
+        <option value="offhat">反拍镲</option>
+        <option value="none">不要鼓</option>
+      </select>
+      <div class="hint">只影响试听，不影响导出的 MIDI</div>
+    </div>
+  </div>
+
+  <button class="go" id="go" disabled>开始转写</button>
+  <div class="err" id="err"></div>
+
+  <div class="result" id="result">
+    <div class="r-head">
+      <div class="r-title"><span class="ok-dot"></span>转写完成</div>
+      <a class="dl" id="dl" download>
+        <svg viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4"/><path d="M4 19h16"/></svg>
+        下载 MIDI
+      </a>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div id="trkBox"></div>
+
+    <div class="player">
+      <button class="pbtn" id="pbtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <div class="wave-wrap"><canvas id="wave"></canvas></div>
+      <div class="ptime" id="ptime">0:00</div>
+    </div>
+    <div class="plabel">↑ 8bit 试听（由转写出的 MIDI 渲染，非原始音频）</div>
+  </div>
+
+  <div class="foot">Basic Pitch · ICASSP 2022 · ONNX Runtime，模型内置无需联网</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = { file:null, audio:null, ctx:null, raf:null, an:null, buf:null };
+
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+function fmt(s){ if(!isFinite(s)) return '0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+
+$('#minNote').addEventListener('input', e=>{ $('#vMin').textContent = e.target.value + ' ms'; });
+
+const drop = $('#drop'), fileInput = $('#file');
+drop.addEventListener('click', e=>{ if(e.target.id==='clear') return; fileInput.click(); });
+drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', ()=> drop.classList.remove('over'));
+drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if(f) takeFile(f); });
+fileInput.addEventListener('change', e=>{ if(e.target.files[0]) takeFile(e.target.files[0]); });
+
+function takeFile(f){
+  if(!/\.(mp3|wav|flac|m4a|ogg)$/i.test(f.name)) return showErr('请选择音频文件（.mp3 / .wav / .flac / .m4a）');
+  state.file = f;
+  $('#dropEmpty').style.display = 'none';
+  $('#dropFile').style.display = 'flex';
+  drop.classList.add('has');
+  $('#fName').textContent = f.name;
+  $('#fSub').textContent = (f.size/1e6).toFixed(1) + ' MB';
+  $('#go').disabled = false;
+  hideErr();
+}
+$('#clear').addEventListener('click', e=>{
+  e.stopPropagation();
+  state.file = null;
+  $('#dropEmpty').style.display = '';
+  $('#dropFile').style.display = 'none';
+  drop.classList.remove('has');
+  $('#go').disabled = true;
+  fileInput.value = '';
+});
+
+function showErr(m){ const el = $('#err'); el.textContent = m; el.classList.add('show'); }
+function hideErr(){ $('#err').classList.remove('show'); }
+
+$('#go').addEventListener('click', async ()=>{
+  if(!state.file) return;
+  const btn = $('#go');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>转写中…';
+  hideErr();
+  $('#result').classList.remove('show');
+  try{
+    const b64 = await readBase64(state.file);
+    const res = await fetch('/api/convert', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        filename: state.file.name, data: b64, mode: 'a2m',
+        opts: { minNote: Number($('#minNote').value), drumPat: $('#drumPat').value }
+      })
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error + (data.log ? '\n' + data.log : ''));
+    render(data);
+  }catch(e){ showErr('转写失败：' + e.message); }
+  finally{ btn.disabled = false; btn.textContent = '开始转写'; }
+});
+
+function readBase64(f){
+  return new Promise((ok,bad)=>{ const r = new FileReader(); r.onload=()=>ok(String(r.result).split(',')[1]); r.onerror=bad; r.readAsDataURL(f); });
+}
+
+function render(data){
+  $('#result').classList.add('show');
+  const m = data.stats.midi || {};
+  const trks = m.tracks || [];
+
+  // KPI
+  const kpi = [];
+  kpi.push(['音符', m.totalNotes || 0, '']);
+  kpi.push(['轨道', trks.length, '']);
+  kpi.push(['时长', m.duration ? m.duration.toFixed(1) : '—', m.duration?'s':'']);
+  const uniq = trks.length ? Math.max.apply(null, trks.map(t=>t.uniq)) : 0;
+  kpi.push(['时值种类', uniq, '种']);
+  $('#kpis').innerHTML = kpi.map(([l,v,u],i)=>
+    `<div class="kpi${i===3?' hl':''}"><div class="kpi-v">${v}<i>${u}</i></div><div class="kpi-l">${l}</div></div>`
+  ).join('');
+
+  // 轨道表
+  const maxN = trks.length ? Math.max.apply(null, trks.map(t=>t.notes)) : 1;
+  $('#trkBox').innerHTML = trks.length
+    ? '<div class="trk-h">逐轨统计</div>' + trks.map(t=>
+        `<div class="trk-row">
+          <div class="trk-n" title="${t.name}">${t.name.replace(/^[a-z0-9]+_/i,'').toUpperCase().slice(0,14)}</div>
+          <div class="trk-c">${t.notes} 音</div>
+          <div class="trk-bar"><i style="width:${(t.notes/maxN*100).toFixed(0)}%"></i></div>
+          <div class="trk-u">${t.uniq} 种</div>
+        </div>`).join('')
+    : '';
+
+  // 下载
+  const dl = $('#dl');
+  dl.href = data.midiUrl || '#';
+  dl.download = (state.file?.name || 'audio').replace(/\.[^.]+$/,'') + '_extracted.mid';
+
+  // 播放器
+  if(state.audio) state.audio.pause();
+  if(state.raf){ cancelAnimationFrame(state.raf); state.raf = null; }
+  const a = new Audio(data.url);
+  state.audio = a;
+  if(!state.ctx) state.ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const src = state.ctx.createMediaElementSource(a);
+  const an = state.ctx.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = .72;
+  src.connect(an); an.connect(state.ctx.destination); state.an = an;
+
+  const total = m.duration || 0;
+  $('#ptime').textContent = '0:00 / ' + fmt(total);
+  a.addEventListener('timeupdate', ()=>{ $('#ptime').textContent = fmt(a.currentTime)+' / '+fmt(a.duration||total); if(!a.paused) draw(true); });
+  a.addEventListener('loadedmetadata', ()=>{ $('#ptime').textContent = '0:00 / '+fmt(a.duration||total); });
+  a.addEventListener('ended', ()=>{ $('#pbtn').innerHTML = ICON_PLAY; if(state.raf){ cancelAnimationFrame(state.raf); state.raf=null; } draw(false); });
+
+  $('#pbtn').onclick = ()=>{
+    if(a.paused){ state.ctx.resume(); a.play(); $('#pbtn').innerHTML = ICON_PAUSE; loop(); }
+    else { a.pause(); $('#pbtn').innerHTML = ICON_PLAY; if(state.raf){ cancelAnimationFrame(state.raf); state.raf=null; } }
+  };
+  $('#wave').onclick = e=>{
+    if(!a.duration) return;
+    const r = $('#wave').getBoundingClientRect();
+    a.currentTime = (e.clientX-r.left)/r.width * a.duration;
+  };
+  setTimeout(()=>draw(false), 60);
+}
+
+function loop(){
+  const step = ()=>{ draw(true); if(state.audio && !state.audio.paused) state.raf = requestAnimationFrame(step); };
+  step();
+}
+
+function draw(live){
+  const c = $('#wave'); if(!c) return;
+  const dpr = window.devicePixelRatio||1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if(!w) return;
+  if(c.width !== w*dpr || c.height !== h*dpr){ c.width = w*dpr; c.height = h*dpr; }
+  const g = c.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+  const bars = 100, bw = w/bars;
+  const a = state.audio;
+  const prog = a && a.duration ? a.currentTime/a.duration : 0;
+  if(live && state.an){
+    state.an.getByteFrequencyData(state.buf || (state.buf = new Uint8Array(state.an.frequencyBinCount)));
+    for(let i=0;i<bars;i++){
+      const idx = Math.floor(Math.pow(i/bars,1.65) * state.buf.length*0.7);
+      const v = state.buf[idx]/255;
+      const bh = Math.max(2, v*h*0.9);
+      g.fillStyle = (i/bars) <= prog ? 'rgba(201,243,29,.92)' : 'rgba(201,243,29,.20)';
+      g.fillRect(i*bw+1,(h-bh)/2,Math.max(1.2,bw-2),bh);
+    }
+  } else {
+    for(let i=0;i<bars;i++){
+      const bh = (0.16+0.09*Math.abs(Math.sin(i*0.55)))*h;
+      g.fillStyle = (i/bars) <= prog ? 'rgba(201,243,29,.75)' : 'rgba(120,120,138,.24)';
+      g.fillRect(i*bw+1,(h-bh)/2,Math.max(1.2,bw-2),bh);
+    }
+  }
+}
+window.addEventListener('resize', ()=>draw(false));
+</script>
+</body>
+</html>
