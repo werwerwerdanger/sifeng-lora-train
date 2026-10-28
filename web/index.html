@@ -67,7 +67,7 @@
 
   .sec{margin-top:36px}
   .sec-h{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:13px}
-  .modes{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .modes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
   .mode{
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
     padding:17px 18px; cursor:pointer; text-align:left;
@@ -158,6 +158,19 @@
     font-size:10.5px;color:var(--dim2);white-space:pre-wrap;line-height:1.6;
     max-height:104px;overflow-y:auto;
   }
+  /* MIDI 转写统计 */
+  .midi-stats{margin-top:15px;padding-top:14px;border-top:1px solid var(--line);display:none}
+  .midi-stats.show{display:block}
+  .ms-h{font-size:10px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:9px}
+  .ms-row{display:grid;grid-template-columns:68px 52px 1fr 54px;gap:9px;align-items:center;
+    font-size:11px;padding:5px 0;font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(35,35,41,.6)}
+  .ms-row:last-child{border-bottom:none}
+  .ms-n{font-family:ui-monospace,Consolas,monospace;color:var(--fg);font-weight:600;font-size:10.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ms-c{color:var(--dim);text-align:right}
+  .ms-bar{height:4px;border-radius:2px;background:var(--surface2);overflow:hidden;position:relative}
+  .ms-bar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:2px}
+  .ms-u{color:var(--accent);text-align:right;font-weight:600}
   /* 声道分离波形 */
   .stems{margin-top:16px;padding-top:15px;border-top:1px solid var(--line);display:none}
   .stems.show{display:block}
@@ -195,8 +208,8 @@
       <div class="drop-ico">
         <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5l5 5"/><path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
       </div>
-      <div class="drop-t">拖入 MIDI 文件</div>
-      <div class="drop-s">或点击选择 · .mid / .midi</div>
+      <div class="drop-t" id="dropTitle">拖入 MIDI 文件</div>
+      <div class="drop-s" id="dropSub">或点击选择 · .mid / .midi</div>
     </div>
     <div id="dropFile" class="file-row" style="display:none">
       <div class="file-ico">MID</div>
@@ -207,7 +220,7 @@
       <button class="clear" id="clear" title="移除">×</button>
     </div>
   </div>
-  <input type="file" id="file" accept=".mid,.midi,audio/midi" style="display:none">
+  <input type="file" id="file" accept=".mid,.midi,.mp3,.wav,.flac,.m4a,.ogg,audio/*" style="display:none">
 
   <div class="sec">
     <div class="sec-h">输出类型</div>
@@ -221,6 +234,11 @@
         <div class="tick"><svg viewBox="0 0 12 12"><path d="M2 6l2.5 2.5L10 3"/></svg></div>
         <div class="mode-n">古典 · 四重奏</div>
         <div class="mode-d">SoundFont 采样，小提琴×2 / 中提琴 / 大提琴</div>
+      </button>
+      <button class="mode" data-mode="a2m">
+        <div class="tick"><svg viewBox="0 0 12 12"><path d="M2 6l2.5 2.5L10 3"/></svg></div>
+        <div class="mode-n">音频 · 转 MIDI</div>
+        <div class="mode-d">Basic Pitch 神经网络逐音转写，输出可编辑 MIDI</div>
       </button>
     </div>
   </div>
@@ -236,7 +254,10 @@
   <div class="result" id="result">
     <div class="res-top">
       <div class="res-t"><span class="ok-dot"></span>转换完成</div>
-      <a class="dl" id="dl" download>下载 WAV</a>
+      <div style="display:flex;gap:8px">
+        <a class="dl" id="dlMidi" download style="display:none">下载 MIDI</a>
+        <a class="dl" id="dl" download>下载 WAV</a>
+      </div>
     </div>
     <div class="player">
       <button class="pbtn" id="pbtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
@@ -244,6 +265,7 @@
       <div class="ptime" id="ptime">0:00</div>
     </div>
     <div class="metrics" id="metrics"></div>
+    <div class="midi-stats" id="midiStats"></div>
     <div class="stems" id="stems"></div>
     <div class="log" id="log"></div>
   </div>
@@ -262,6 +284,10 @@ const PARAMS = {
     { k:'bits', label:'位深量化', type:'select', val:0, options:[{v:0,t:'关闭（现代 8bit 风格）'},{v:4,t:'4-bit（真 NES 硬件）'}], hint:'真 4-bit 会砍掉低频，一般关闭' },
     { k:'bassKind', label:'低音波形', type:'select', val:'pulse', options:[{v:'pulse',t:'脉冲波（低频厚）'},{v:'triangle',t:'三角波（更正统但弱）'}], hint:'NES 原机是三角波，能量偏小' },
     { k:'drumPat', label:'节奏型', type:'select', val:'', options:[{v:'',t:'用 MIDI 自带鼓轨'},{v:'four',t:'四踩 Four-on-floor'},{v:'euro',t:'欧陆 Euro（四踩+反拍开镲）'},{v:'rock',t:'摇滚 Rock（1/3 底鼓 2/4 军鼓）'},{v:'offhat',t:'反拍镲 Offbeat'},{v:'hat8',t:'八分镲 Hat 8th'},{v:'half',t:'半速 Half-time'},{v:'none',t:'不要鼓'}], hint:'内置范式按 BPM 自动铺满，不依赖 MIDI 鼓轨' }
+  ],
+  a2m: [
+    { k:'minNote', label:'最短音符', min:30, max:200, step:10, val:60, unit:' ms', hint:'越短越密集；60ms 较稳妥，太长会丢掉快速经过音' },
+    { k:'drumPat', label:'试听节奏型', type:'select', val:'rock', options:[{v:'',t:'只转写，不加鼓'},{v:'four',t:'四踩'},{v:'euro',t:'欧陆'},{v:'rock',t:'摇滚'},{v:'offhat',t:'反拍镲'},{v:'none',t:'不要鼓'}], hint:'转写完成后会渲染一份 8bit 试听' }
   ],
   q4: [
     { k:'reverb', label:'混响量', min:0, max:0.6, step:0.02, val:0.25, hint:'卷积混响，IR 1.6s、预延迟 12ms' },
@@ -310,7 +336,13 @@ drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('ov
 fileInput.addEventListener('change', e=>{ if(e.target.files[0]) takeFile(e.target.files[0]); });
 
 function takeFile(f){
-  if(!/\.midi?$/i.test(f.name)) return showErr('请选择 .mid 或 .midi 文件');
+  const isMidi = /\.midi?$/i.test(f.name);
+  const isAudio = /\.(mp3|wav|flac|m4a|ogg)$/i.test(f.name);
+  if(state.mode === 'a2m'){
+    if(!isAudio) return showErr('转 MIDI 模式请选择音频文件（.mp3 / .wav / .flac / .m4a）');
+  } else {
+    if(!isMidi) return showErr('8bit / 古典 模式请选择 .mid 或 .midi 文件');
+  }
   state.file = f;
   $('#dropEmpty').style.display = 'none';
   $('#dropFile').style.display = 'flex';
@@ -336,6 +368,12 @@ document.querySelectorAll('.mode').forEach(b=>{
     b.classList.add('on');
     state.mode = b.dataset.mode;
     renderParams();
+    const t = document.getElementById('dropTitle');
+    const sub = document.getElementById('dropSub');
+    if(t && sub){
+      if(state.mode === 'a2m'){ t.textContent = '拖入音频文件'; sub.textContent = '或点击选择 · .mp3 / .wav / .flac'; }
+      else { t.textContent = '拖入 MIDI 文件'; sub.textContent = '或点击选择 · .mid / .midi'; }
+    }
   });
 });
 
@@ -386,6 +424,7 @@ function showResult(data){
   $('#log').textContent = (data.stats.mapping?.join('\n')||'') + (data.stats.mapping?'\n':'') + (data.log||'');
 
   drawStems(data.stats.stems, data.stats.mapping);
+  drawMidiStats(data);
 
   if(state.audio) state.audio.pause();
   if(state.raf){ cancelAnimationFrame(state.raf); state.raf = null; }
@@ -416,6 +455,33 @@ function showResult(data){
 function loopWave(){
   const step = ()=>{ drawWave(true); if(state.audio && !state.audio.paused) state.raf = requestAnimationFrame(step); };
   step();
+}
+
+// ---------- MIDI 转写统计 ----------
+function drawMidiStats(data){
+  const box = $('#midiStats');
+  const dlM = $('#dlMidi');
+  const m = data.stats && data.stats.midi;
+  if(!m || !m.tracks){ box.classList.remove("show"); dlM.style.display = "none"; return; }
+  box.classList.add("show");
+  if(data.midiUrl){
+    dlM.style.display = "";
+    dlM.href = data.midiUrl;
+    dlM.download = (state.file ? state.file.name : 'audio').replace(/\.[^.]+$/, '') + '_extracted.mid';
+  }
+  const maxN = Math.max.apply(null, m.tracks.map(function(t){ return t.notes; }));
+  let html = '<div class="ms-h">转写结果 · ' + (m.totalNotes || 0) + ' 音 / ' + m.tracks.length + ' 轨'
+    + (m.duration ? ' · ' + m.duration.toFixed(1) + 's' : '') + '</div>';
+  m.tracks.forEach(function(t){
+    const w = (t.notes / maxN * 100).toFixed(0);
+    html += '<div class="ms-row">'
+      + '<div class="ms-n">' + t.name.toUpperCase().slice(0,9) + '</div>'
+      + '<div class="ms-c">' + t.notes + ' 音</div>'
+      + '<div class="ms-bar"><i style="left:0;width:' + w + '%"></i></div>'
+      + '<div class="ms-u">' + t.uniq + ' 种</div>'
+      + '</div>';
+  });
+  box.innerHTML = html;
 }
 
 // ---------- 声道分离波形 ----------

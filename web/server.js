@@ -100,6 +100,51 @@ function handleConvert(req, res) {
 
     let args;
     const stemPath = path.join(OUT, `${stamp}_stems.json`);
+    if (mode === 'a2m') {
+      // 音频 → MIDI → 顺便渲染一份 8bit 试听
+      const midOut = path.join(OUT, `${stamp}_a2m.mid`);
+      const minNote = String(opts.minNote ?? 60);
+      const a1 = ['audio2midi.py', '--audio', midPath, '--out', midOut, '--min-note', minNote];
+      console.log('[a2m] 转写中…');
+      return runPython(a1, (c1, out1, err1, ms1) => {
+        if (c1 !== 0 || !fs.existsSync(midOut)) {
+          console.error('[a2m fail]', c1, err1.slice(-500));
+          return send(res, 500, JSON.stringify({ error: 'transcription failed', log: (out1 + err1).slice(-1400) }));
+        }
+        const a2 = ['midi2nes.py', '--mid', midOut, '--out', outPath,
+                    '--transpose-bass', '0', '--bits', '0'];
+        if (opts.drumPat) a2.push('--drumpat', opts.drumPat);
+        console.log('[a2m] 渲染试听…');
+        runPython(a2, (c2, out2, err2, ms2) => {
+          if (c2 !== 0 || !fs.existsSync(outPath)) {
+            return send(res, 500, JSON.stringify({ error: 'render failed', log: (out2 + err2).slice(-1400) }));
+          }
+          // 解析转写统计
+          const stats = { midi: {} };
+          const rows = [...out1.matchAll(/(\S+)\s+(\d+)\s*音\s+音域\s*(\d+)-(\d+)\s+时值\s*(\d+)ms\s*中位\s+唯一值\s+(\d+)/g)];
+          if (rows.length) {
+            stats.midi.tracks = rows.map(m => ({
+              name: m[1], notes: +m[2], lo: +m[3], hi: +m[4], medMs: +m[5], uniq: +m[6],
+            }));
+            stats.midi.totalNotes = stats.midi.tracks.reduce((a, x) => a + x.notes, 0);
+          }
+          const d = out1.match(/时长s+([d.]+)s/);
+          if (d) stats.midi.duration = +d[1];
+          stats.spectrum = parseStats(out2).spectrum;
+          const size = fs.statSync(outPath).size;
+          const midiSize = fs.statSync(midOut).size;
+          console.log(`[a2m ok] ${(stats.midi.totalNotes||0)} 音  ${((ms1+ms2)/1000).toFixed(1)}s`);
+          send(res, 200, JSON.stringify({
+            ok: true,
+            url: '/outputs/' + encodeURIComponent(path.basename(outPath)),
+            midiUrl: '/outputs/' + encodeURIComponent(path.basename(midOut)),
+            size, midiSize, ms: ms1 + ms2,
+            stats,
+            log: (out1 + '\n' + out2).slice(-900),
+          }));
+        });
+      });
+    }
     if (mode === 'nes') {
       args = ['midi2nes.py', '--mid', midPath, '--out', outPath,
         '--bits', String(opts.bits ?? 0),
