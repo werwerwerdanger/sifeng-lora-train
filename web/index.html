@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MIDI · 音色转换</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#08080b; --surface:#101014; --surface2:#16161c;
+    --line:#232329; --line2:#2e2e37;
+    --fg:#f2f2f5; --dim:#78788a; --dim2:#4a4a58;
+    --accent:#c9f31d; --accent-dim:rgba(201,243,29,.12);
+    --err:#f87171;
+  }
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-feature-settings:"tnum";
+    display:flex; flex-direction:column; align-items:center;
+    padding:56px 24px 80px; min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(700px 400px at 50% -12%, rgba(201,243,29,.055), transparent 70%);
+  }
+  .app{width:100%; max-width:860px; position:relative; z-index:1}
+
+  .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:56px}
+  h1{font-size:15px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .mark{width:7px;height:7px;background:var(--accent);border-radius:2px}
+  .top .v{font-size:11px;color:var(--dim2);letter-spacing:.08em;text-transform:uppercase}
+
+  .drop{
+    border:1px dashed var(--line2); border-radius:14px;
+    padding:64px 32px; text-align:center; cursor:pointer;
+    transition:border-color .2s, background .2s, padding .2s;
+    background:var(--surface);
+  }
+  .drop:hover{border-color:#3d3d48;background:var(--surface2)}
+  .drop.over{border-color:var(--accent);background:var(--accent-dim)}
+  .drop.has{border-style:solid;border-color:var(--line2);padding:28px 32px;text-align:left;background:var(--surface)}
+  .drop-ico{
+    width:40px;height:40px;margin:0 auto 16px;border-radius:10px;
+    background:var(--surface2);border:1px solid var(--line);
+    display:grid;place-items:center;
+  }
+  .drop-ico svg{width:17px;height:17px;stroke:var(--dim);fill:none;stroke-width:1.6}
+  .drop-t{font-size:14px;font-weight:500;margin-bottom:5px}
+  .drop-s{font-size:12.5px;color:var(--dim)}
+  .file-row{display:flex;align-items:center;gap:14px}
+  .file-ico{
+    width:38px;height:38px;border-radius:9px;background:var(--accent-dim);
+    display:grid;place-items:center;flex:0 0 auto;
+    font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.03em;
+  }
+  .file-meta{min-width:0;flex:1}
+  .file-name{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-size{font-size:12px;color:var(--dim);margin-top:2px}
+  .clear{
+    flex:0 0 auto;background:none;border:none;color:var(--dim2);cursor:pointer;
+    font-size:19px;line-height:1;padding:5px 7px;border-radius:6px;
+  }
+  .clear:hover{color:var(--fg);background:var(--surface2)}
+
+  .sec{margin-top:36px}
+  .sec-h{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:13px}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .mode{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:17px 18px; cursor:pointer; text-align:left;
+    transition:border-color .18s, background .18s;
+    position:relative; font-family:inherit; color:inherit;
+  }
+  .mode:hover{border-color:var(--line2)}
+  .mode.on{border-color:var(--accent);background:var(--accent-dim)}
+  .mode-n{font-size:13.5px;font-weight:600;margin-bottom:3px}
+  .mode-d{font-size:11.5px;color:var(--dim);line-height:1.45}
+  .mode.on .mode-d{color:#a8b878}
+  .mode .tick{
+    position:absolute;top:15px;right:15px;width:15px;height:15px;border-radius:50%;
+    border:1.5px solid var(--line2);display:grid;place-items:center;transition:.18s;
+  }
+  .mode.on .tick{border-color:var(--accent);background:var(--accent)}
+  .tick svg{width:8px;height:8px;stroke:#08080b;stroke-width:2.6;fill:none;opacity:0;transition:.18s}
+  .mode.on .tick svg{opacity:1}
+
+  .params{display:grid;grid-template-columns:1fr 1fr;gap:18px 22px;margin-top:14px}
+  .p{display:flex;flex-direction:column;gap:8px}
+  .p-l{display:flex;justify-content:space-between;font-size:12px;color:var(--dim)}
+  .p-l b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;
+    background:var(--line2);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:none;
+    box-shadow:0 0 0 3px rgba(201,243,29,.16);
+  }
+  select{
+    background:var(--surface); border:1px solid var(--line); color:var(--fg);
+    border-radius:8px; padding:8px 10px; font-size:12.5px; cursor:pointer;
+    font-family:inherit; width:100%; outline:none;
+  }
+  select:focus{border-color:var(--accent)}
+  .hint{font-size:11px;color:var(--dim2);margin-top:1px;line-height:1.4}
+
+  .go{
+    margin-top:32px; width:100%; height:50px; border:none; border-radius:11px;
+    background:var(--accent); color:#08080b; font-size:14px; font-weight:650;
+    font-family:inherit; cursor:pointer; letter-spacing:.01em;
+    transition:filter .16s, transform .12s;
+    display:flex;align-items:center;justify-content:center;gap:9px;
+  }
+  .go:hover:not(:disabled){filter:brightness(1.08)}
+  .go:active:not(:disabled){transform:scale(.995)}
+  .go:disabled{background:var(--line);color:var(--dim2);cursor:not-allowed}
+  .spin{width:14px;height:14px;border:2px solid rgba(8,8,11,.25);border-top-color:#08080b;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .result{
+    margin-top:18px; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; padding:22px 24px; display:none;
+  }
+  .result.show{display:block;animation:in .32s cubic-bezier(.2,.8,.3,1)}
+  @keyframes in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  .res-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .res-t{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .ok-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dl{
+    font-size:12px;color:var(--accent);text-decoration:none;font-weight:550;
+    border:1px solid rgba(201,243,29,.3);padding:6px 13px;border-radius:7px;transition:.16s;
+  }
+  .dl:hover{background:var(--accent-dim)}
+  .player{display:flex;align-items:center;gap:15px;margin-bottom:18px}
+  .pbtn{
+    width:42px;height:42px;flex:0 0 auto;border-radius:50%;border:none;cursor:pointer;
+    background:var(--accent);color:#08080b;display:grid;place-items:center;transition:transform .14s;
+  }
+  .pbtn:hover{transform:scale(1.06)}
+  .pbtn svg{width:15px;height:15px;fill:currentColor}
+  .wave-wrap{flex:1;height:40px}
+  canvas{width:100%;height:100%;display:block;cursor:pointer}
+  .ptime{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:78px;text-align:right}
+  .metrics{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{
+    font-size:11px;color:var(--dim);background:var(--surface2);
+    border:1px solid var(--line);border-radius:6px;padding:4px 9px;
+    font-variant-numeric:tabular-nums;
+  }
+  .chip b{color:var(--fg);font-weight:600}
+  .log{
+    margin-top:15px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+    font-size:10.5px;color:var(--dim2);white-space:pre-wrap;line-height:1.6;
+    max-height:104px;overflow-y:auto;
+  }
+  /* 声道分离波形 */
+  .stems{margin-top:16px;padding-top:15px;border-top:1px solid var(--line);display:none}
+  .stems.show{display:block}
+  .stems-h{
+    font-size:10px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;
+    font-weight:600;margin-bottom:11px;display:flex;justify-content:space-between;
+  }
+  .stems-h span{color:var(--dim2);letter-spacing:0;text-transform:none;font-weight:400}
+  .stem-row{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .stem-name{
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.06em;width:54px;flex:0 0 auto;font-weight:600;
+  }
+  .stem-cv{flex:1;height:24px}
+  .stem-cv canvas{width:100%;height:100%;display:block}
+  .err{
+    margin-top:16px;border:1px solid rgba(248,113,113,.28);background:rgba(248,113,113,.07);
+    color:var(--err);border-radius:10px;padding:13px 16px;font-size:12.5px;
+    display:none;white-space:pre-wrap;
+  }
+  .err.show{display:block}
+  .foot{margin-top:52px;text-align:center;font-size:11px;color:var(--dim2);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <h1><span class="mark"></span>MIDI 音色转换</h1>
+    <div class="v">8bit / Classical</div>
+  </div>
+
+  <div class="drop" id="drop">
+    <div id="dropEmpty">
+      <div class="drop-ico">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5l5 5"/><path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+      </div>
+      <div class="drop-t">拖入 MIDI 文件</div>
+      <div class="drop-s">或点击选择 · .mid / .midi</div>
+    </div>
+    <div id="dropFile" class="file-row" style="display:none">
+      <div class="file-ico">MID</div>
+      <div class="file-meta">
+        <div class="file-name" id="fName"></div>
+        <div class="file-size" id="fSize"></div>
+      </div>
+      <button class="clear" id="clear" title="移除">×</button>
+    </div>
+  </div>
+  <input type="file" id="file" accept=".mid,.midi,audio/midi" style="display:none">
+
+  <div class="sec">
+    <div class="sec-h">输出类型</div>
+    <div class="modes">
+      <button class="mode on" data-mode="nes">
+        <div class="tick"><svg viewBox="0 0 12 12"><path d="M2 6l2.5 2.5L10 3"/></svg></div>
+        <div class="mode-n">8bit · NES</div>
+        <div class="mode-d">脉冲波 / 三角波 / LFSR 噪声，四声道硬件限制</div>
+      </button>
+      <button class="mode" data-mode="q4">
+        <div class="tick"><svg viewBox="0 0 12 12"><path d="M2 6l2.5 2.5L10 3"/></svg></div>
+        <div class="mode-n">古典 · 四重奏</div>
+        <div class="mode-d">SoundFont 采样，小提琴×2 / 中提琴 / 大提琴</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">参数</div>
+    <div class="params" id="params"></div>
+  </div>
+
+  <button class="go" id="go" disabled>开始转换</button>
+  <div class="err" id="err"></div>
+
+  <div class="result" id="result">
+    <div class="res-top">
+      <div class="res-t"><span class="ok-dot"></span>转换完成</div>
+      <a class="dl" id="dl" download>下载 WAV</a>
+    </div>
+    <div class="player">
+      <button class="pbtn" id="pbtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <div class="wave-wrap"><canvas id="wave"></canvas></div>
+      <div class="ptime" id="ptime">0:00</div>
+    </div>
+    <div class="metrics" id="metrics"></div>
+    <div class="stems" id="stems"></div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="foot">源分离与音色转换由神经网络完成 · 合成与母带由确定性算法完成</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = { file:null, mode:'nes', audio:null, ctx:null, raf:null, an:null, buf:null };
+
+const PARAMS = {
+  nes: [
+    { k:'vib', label:'旋律颤音', min:0, max:40, step:1, val:16, unit:' cents', hint:'0 = 完全平直，16 接近 NES 的轻微抖动' },
+    { k:'transposeBass', label:'低音移调', min:0, max:24, step:12, val:12, unit:' 半音', hint:'+12 = 升八度推进 120-250Hz，不改音名' },
+    { k:'bits', label:'位深量化', type:'select', val:0, options:[{v:0,t:'关闭（现代 8bit 风格）'},{v:4,t:'4-bit（真 NES 硬件）'}], hint:'真 4-bit 会砍掉低频，一般关闭' },
+    { k:'bassKind', label:'低音波形', type:'select', val:'pulse', options:[{v:'pulse',t:'脉冲波（低频厚）'},{v:'triangle',t:'三角波（更正统但弱）'}], hint:'NES 原机是三角波，能量偏小' },
+    { k:'drumPat', label:'节奏型', type:'select', val:'', options:[{v:'',t:'用 MIDI 自带鼓轨'},{v:'four',t:'四踩 Four-on-floor'},{v:'euro',t:'欧陆 Euro（四踩+反拍开镲）'},{v:'rock',t:'摇滚 Rock（1/3 底鼓 2/4 军鼓）'},{v:'offhat',t:'反拍镲 Offbeat'},{v:'hat8',t:'八分镲 Hat 8th'},{v:'half',t:'半速 Half-time'},{v:'none',t:'不要鼓'}], hint:'内置范式按 BPM 自动铺满，不依赖 MIDI 鼓轨' }
+  ],
+  q4: [
+    { k:'reverb', label:'混响量', min:0, max:0.6, step:0.02, val:0.25, hint:'卷积混响，IR 1.6s、预延迟 12ms' },
+    { k:'percPat', label:'定音鼓节奏', type:'select', val:'basic', options:[{v:'basic',t:'Basic（1、3 拍）'},{v:'strong',t:'Strong（只 1 拍）'},{v:'half',t:'Half（1、3 拍都重）'},{v:'roll',t:'Roll（半拍滚奏）'},{v:'accent',t:'Accent（切分重音）'},{v:'none',t:'不要定音鼓'}], hint:'弦乐四重奏缺节奏骨架会散，这一项补上' }
+  ]
+};
+
+function renderParams(){
+  const box = $('#params'); box.innerHTML = '';
+  for(const p of PARAMS[state.mode]){
+    const wrap = document.createElement('div'); wrap.className = 'p';
+    if(p.type === 'select'){
+      wrap.innerHTML = `<div class="p-l"><span>${p.label}</span></div>
+        <select data-k="${p.k}">${p.options.map(o=>`<option value="${o.v}" ${o.v===p.val?'selected':''}>${o.t}</option>`).join('')}</select>
+        ${p.hint?`<div class="hint">${p.hint}</div>`:''}`;
+    } else {
+      wrap.innerHTML = `<div class="p-l"><span>${p.label}</span><b data-v="${p.k}">${p.val}${p.unit||''}</b></div>
+        <input type="range" data-k="${p.k}" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.val}">
+        ${p.hint?`<div class="hint">${p.hint}</div>`:''}`;
+    }
+    box.appendChild(wrap);
+  }
+  box.querySelectorAll('input[type=range]').forEach(el=>{
+    el.addEventListener('input', e=>{
+      const p = PARAMS[state.mode].find(x=>x.k===e.target.dataset.k);
+      box.querySelector(`b[data-v="${e.target.dataset.k}"]`).textContent = e.target.value + (p.unit||'');
+    });
+  });
+}
+
+function collectOpts(){
+  const o = {};
+  for(const p of PARAMS[state.mode]){
+    const el = $(`#params [data-k="${p.k}"]`);
+    if(!el) continue;
+    o[p.k] = p.type==='select' ? (isNaN(Number(el.value)) ? el.value : Number(el.value)) : Number(el.value);
+  }
+  return o;
+}
+
+const drop = $('#drop'), fileInput = $('#file');
+drop.addEventListener('click', e=>{ if(e.target.id === 'clear') return; fileInput.click(); });
+drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', ()=> drop.classList.remove('over'));
+drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if(f) takeFile(f); });
+fileInput.addEventListener('change', e=>{ if(e.target.files[0]) takeFile(e.target.files[0]); });
+
+function takeFile(f){
+  if(!/\.midi?$/i.test(f.name)) return showErr('请选择 .mid 或 .midi 文件');
+  state.file = f;
+  $('#dropEmpty').style.display = 'none';
+  $('#dropFile').style.display = 'flex';
+  drop.classList.add('has');
+  $('#fName').textContent = f.name;
+  $('#fSize').textContent = (f.size/1024).toFixed(1) + ' KB';
+  $('#go').disabled = false;
+  hideErr();
+}
+$('#clear').addEventListener('click', e=>{
+  e.stopPropagation();
+  state.file = null;
+  $('#dropEmpty').style.display = '';
+  $('#dropFile').style.display = 'none';
+  drop.classList.remove('has');
+  $('#go').disabled = true;
+  fileInput.value = '';
+});
+
+document.querySelectorAll('.mode').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    state.mode = b.dataset.mode;
+    renderParams();
+  });
+});
+
+function showErr(m){ const e = $('#err'); e.textContent = m; e.classList.add('show'); }
+function hideErr(){ $('#err').classList.remove('show'); }
+
+$('#go').addEventListener('click', async ()=>{
+  if(!state.file) return;
+  const btn = $('#go');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>转换中…';
+  hideErr();
+  $('#result').classList.remove('show');
+  try{
+    const b64 = await readBase64(state.file);
+    const res = await fetch('/api/convert', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ filename: state.file.name, data: b64, mode: state.mode, opts: collectOpts() })
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error + (data.log ? '\n' + data.log : ''));
+    showResult(data);
+  }catch(e){ showErr('转换失败：' + e.message); }
+  finally{ btn.disabled = false; btn.textContent = '开始转换'; }
+});
+
+function readBase64(f){
+  return new Promise((ok,bad)=>{ const r = new FileReader(); r.onload=()=>ok(String(r.result).split(',')[1]); r.onerror=bad; r.readAsDataURL(f); });
+}
+
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+function fmt(s){ if(!isFinite(s)) return '0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+
+function showResult(data){
+  $('#result').classList.add('show');
+  $('#dl').href = data.url;
+  $('#dl').download = (state.file?.name||'output').replace(/\.midi?$/i,'') + '_' + (state.mode==='nes'?'8bit':'q4') + '.wav';
+
+  const chips = [];
+  if(data.stats.duration) chips.push(`时长 <b>${data.stats.duration.toFixed(1)}s</b>`);
+  chips.push(`耗时 <b>${(data.ms/1000).toFixed(1)}s</b>`);
+  chips.push(`体积 <b>${(data.size/1e6).toFixed(1)}MB</b>`);
+  const s = data.stats.spectrum || {};
+  if(s['120-250']!=null) chips.push(`低频 <b>${s['120-250']}%</b>`);
+  if(s['500-1000']!=null) chips.push(`中频 <b>${s['500-1000']}%</b>`);
+  $('#metrics').innerHTML = chips.map(c=>`<span class="chip">${c}</span>`).join('');
+  $('#log').textContent = (data.stats.mapping?.join('\n')||'') + (data.stats.mapping?'\n':'') + (data.log||'');
+
+  drawStems(data.stats.stems, data.stats.mapping);
+
+  if(state.audio) state.audio.pause();
+  if(state.raf){ cancelAnimationFrame(state.raf); state.raf = null; }
+  const a = new Audio(data.url); state.audio = a;
+  if(!state.ctx) state.ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const src = state.ctx.createMediaElementSource(a);
+  const an = state.ctx.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = .72;
+  src.connect(an); an.connect(state.ctx.destination); state.an = an;
+
+  const total = data.stats.duration || 0;
+  $('#ptime').textContent = '0:00 / ' + fmt(total);
+  a.addEventListener('timeupdate', ()=>{ $('#ptime').textContent = fmt(a.currentTime)+' / '+fmt(a.duration||total); if(!a.paused) drawWave(true); });
+  a.addEventListener('loadedmetadata', ()=>{ $('#ptime').textContent = '0:00 / '+fmt(a.duration||total); });
+  a.addEventListener('ended', ()=>{ $('#pbtn').innerHTML = ICON_PLAY; if(state.raf){ cancelAnimationFrame(state.raf); state.raf=null; } drawWave(false); });
+
+  $('#pbtn').onclick = ()=>{
+    if(a.paused){ state.ctx.resume(); a.play(); $('#pbtn').innerHTML = ICON_PAUSE; loopWave(); }
+    else { a.pause(); $('#pbtn').innerHTML = ICON_PLAY; if(state.raf){ cancelAnimationFrame(state.raf); state.raf=null; } }
+  };
+  $('#wave').onclick = e=>{
+    if(!a.duration) return;
+    const r = $('#wave').getBoundingClientRect();
+    a.currentTime = (e.clientX-r.left)/r.width * a.duration;
+  };
+  setTimeout(()=>drawWave(false), 60);
+}
+
+function loopWave(){
+  const step = ()=>{ drawWave(true); if(state.audio && !state.audio.paused) state.raf = requestAnimationFrame(step); };
+  step();
+}
+
+// ---------- 声道分离波形 ----------
+const STEM_COLOR = {
+  pulse1:'#c9f31d', pulse2:'#7dd3fc', bass:'#a78bfa', noise:'#f59e0b'
+};
+const STEM_LABEL = {
+  pulse1:'PULSE 1', pulse2:'PULSE 2', bass:'TRI / BASS', noise:'NOISE'
+};
+function drawStems(stems, mapping){
+  const box = $('#stems');
+  box.innerHTML = '';
+  state.stemData = stems || null;
+  if(!stems || !stems.peaks) { box.classList.remove('show'); return; }
+  box.classList.add('show');
+
+  const order = (stems.order || Object.keys(stems.peaks)).filter(k => stems.peaks[k]);
+  const head = document.createElement('div');
+  head.className = 'stems-h';
+  head.innerHTML = `<div>声道分离</div><span>${order.length} tracks · ${stems.points} pts</span>`;
+  box.appendChild(head);
+
+  order.forEach(name=>{
+    const row = document.createElement('div');
+    row.className = 'stem-row';
+    const peaks = stems.peaks[name];
+    const col = STEM_COLOR[name] || '#c9f31d';
+
+    const lab = document.createElement('div');
+    lab.className = 'stem-name';
+    lab.textContent = STEM_LABEL[name] || name.toUpperCase();
+    lab.style.color = col;
+
+    const cw = document.createElement('div');
+    cw.className = 'stem-cv';
+    const cv = document.createElement('canvas');
+    cv.dataset.stem = name;
+    cw.appendChild(cv);
+
+    row.appendChild(lab); row.appendChild(cw);
+    box.appendChild(row);
+
+    requestAnimationFrame(()=> paintStem(cv, peaks, col));
+  });
+  state.stemCanvases = [...box.querySelectorAll('canvas')];
+}
+
+function paintStem(cv, peaks, color){
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if(!w) return;
+  if(cv.width !== w*dpr || cv.height !== h*dpr){ cv.width = w*dpr; cv.height = h*dpr; }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+
+  const n = peaks.length;
+  // 每根柱取该区间最大值, 保证不丢瞬态
+  const bars = Math.min(340, Math.floor(w/1.6));
+  const bw = w/bars;
+  for(let i=0;i<bars;i++){
+    const a = Math.floor(i*n/bars), b = Math.max(a+1, Math.floor((i+1)*n/bars));
+    let v = 0;
+    for(let k=a;k<b && k<n;k++) if(peaks[k] > v) v = peaks[k];
+    const bh = Math.max(1, Math.pow(v, 0.72) * (h-2));
+    g.fillStyle = color;
+    g.globalAlpha = 0.32 + 0.68*Math.min(1, v*3.2);
+    g.fillRect(i*bw, (h-bh)/2, Math.max(0.8, bw-0.6), bh);
+  }
+  g.globalAlpha = 1;
+}
+
+function drawWave(live){
+  const c = $('#wave'); if(!c) return;
+  const dpr = window.devicePixelRatio||1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if(!w) return;
+  if(c.width !== w*dpr || c.height !== h*dpr){ c.width = w*dpr; c.height = h*dpr; }
+  const g = c.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+  const bars = 110, bw = w/bars;
+  const a = state.audio;
+  const prog = a && a.duration ? a.currentTime/a.duration : 0;
+  if(live && state.an){
+    state.an.getByteFrequencyData(state.buf || (state.buf = new Uint8Array(state.an.frequencyBinCount)));
+    for(let i=0;i<bars;i++){
+      const idx = Math.floor(Math.pow(i/bars,1.65) * state.buf.length*0.7);
+      const v = state.buf[idx]/255;
+      const bh = Math.max(2, v*h*0.9);
+      g.fillStyle = (i/bars) <= prog ? 'rgba(201,243,29,.92)' : 'rgba(201,243,29,.20)';
+      g.fillRect(i*bw+1,(h-bh)/2,Math.max(1.2,bw-2),bh);
+    }
+  } else {
+    for(let i=0;i<bars;i++){
+      const bh = (0.16+0.09*Math.abs(Math.sin(i*0.55)))*h;
+      g.fillStyle = (i/bars) <= prog ? 'rgba(201,243,29,.75)' : 'rgba(120,120,138,.24)';
+      g.fillRect(i*bw+1,(h-bh)/2,Math.max(1.2,bw-2),bh);
+    }
+  }
+}
+window.addEventListener('resize', ()=>{
+  drawWave(false);
+  if(state.stemData){ drawStems(state.stemData); }
+});
+
+renderParams();
+</script>
+</body>
+</html>

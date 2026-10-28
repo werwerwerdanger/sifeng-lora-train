@@ -1,0 +1,21 @@
+# 音频/模型不进仓库
+audio/*
+!audio/.gitkeep
+outputs/
+uploads/
+*.wav
+*.mp3
+*.pth
+*.index
+*.onnx
+*.sf2
+*.mid
+*.midi
+
+# 环境
+venv/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
